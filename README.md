@@ -6,4 +6,4 @@ Use the DeepLabCut outputs to extract important parameters from your behavioral 
 ![](/video_BM_gif.gif)
 
 2 - Run our Python routines to unveil the animal behavior
-![](/example0.gif)
+![](/examplo0.gif)
