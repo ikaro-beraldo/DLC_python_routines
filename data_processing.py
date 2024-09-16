@@ -3,6 +3,7 @@ import numpy as np
 from scipy import stats as sts
 from matplotlib import pyplot as plt
 from minors_functions import *
+import pandas as pd
 
 def fix_frames_confidence(body_part_matrix,conf_threshold):
     
@@ -31,7 +32,7 @@ def fix_frames_confidence(body_part_matrix,conf_threshold):
     
     # Return a new bodypart matrix (x,y,conf)
     #return np.transpose(np.asarray((x_fixed, y_fixed, body_part_matrix[:,2])))
-    return body_part_matrix
+    return body_part_matrix, exc_frames
 
 def fix_frames_diff(body_part_matrix,std_threshold):
     ## Get the frames where coordinates have > 0.5*zscore(abs(diff))
@@ -308,3 +309,127 @@ def exclude_f_past_duration(df, trial_duration=5, fps=30):
         corrected_df = df
     
     return corrected_df
+
+
+# Function to interpolate a temporal series of x,y coordinates 
+def interpolate_x_y(data,missing_index):
+    # Data = np.array((x,y,conf)
+    # missing_indx = list with the index of missing values
+    
+    # Change the missing index values to NaN
+    data[missing_index,:] = np.nan
+
+    # Convert it to a DataFrame
+    df = pd.DataFrame(data)
+   
+    # Interpolate the missing values
+    df_interpolated = df.interpolate(method='linear')    
+    # Forward fill any remaining NaN values
+    df_interpolated = df_interpolated.ffill()
+    # Backward fill any remaining NaN values
+    df_interpolated = df_interpolated.bfill()
+    
+    return df_interpolated.to_numpy()
+
+
+# Function to detect outlier values
+def detect_outliers(data, method='zscore', threshold=3):
+    """
+    Detect outliers in a time series using the specified method.
+
+    Parameters:
+    data (pd.Series): The input time series data.
+    method (str): The method to use for outlier detection ('zscore' or 'iqr').
+    threshold (float): The threshold for the Z-score method.
+
+    Returns:
+    pd.Series: A boolean Series indicating whether each value is an outlier.
+    """
+    def detect_outliers_zscore(data, threshold=3):
+        """
+        Detect outliers in a time series using the Z-score method.
+    
+        Returns:
+        pd.Series: A boolean Series indicating whether each value is an outlier.
+        """
+        mean = np.mean(data)
+        std = np.std(data)
+        z_scores = (data - mean) / std
+        outliers = z_scores > threshold
+        return outliers
+    
+    def detect_outliers_iqr(data):
+        """
+        Detect outliers in a time series using the IQR method.
+    
+        Returns:
+        pd.Series: A boolean Series indicating whether each value is an outlier.
+        """
+        Q1 = data.quantile(0.25)
+        Q3 = data.quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        outliers = (data < lower_bound) | (data > upper_bound)
+        return outliers
+
+    if method == 'zscore':
+        return detect_outliers_zscore(data, threshold)
+    elif method == 'iqr':
+        return detect_outliers_iqr(data)
+    else:
+        raise ValueError("Unsupported method. Use 'zscore' or 'iqr'.")
+        
+        
+# Function to average blocks of data (temporal series)
+def average_blocks(data, block_size, alg_type='average', min_block=30):
+    """
+    Average a temporal series in blocks of n values and include the count of elements in each block.
+
+    Parameters:
+    data (pd.Series): The input time series data.
+    block_size (int): The size of each block to average.
+    alg_type (string): The type of calculation will be done 'average' or 'sum'
+
+    Returns:
+    pd.DataFrame: A DataFrame with two columns: 'average' and 'count'.
+    """
+    # Calculate the number of full blocks
+    num_blocks = (len(data) + block_size - 1) // block_size
+
+    res = []
+    counts = []
+
+    for i in range(num_blocks):
+        block = data[i * block_size : (i + 1) * block_size]
+        if alg_type == 'average':
+            res.append(block.mean())
+        elif alg_type == 'sum':
+            res.append(block.sum())
+        else:
+            import sys
+            print('alt_type must be "average" or "sum"',file=sys.stderr)
+        
+        counts.append(len(block))
+
+    # if alg_type == 'average':
+    #     result = pd.DataFrame({
+    #         'average': res,
+    #         'count': counts
+    #     })
+    # elif alg_type == 'sum':
+    #     result = pd.DataFrame({
+    #         'sum': res,
+    #         'count': counts
+    #     })
+    
+   
+    df = pd.DataFrame({
+        f'{(i + 1)/(60/min_block)}': [avg] for i, avg in enumerate(res)
+    })
+    
+    # Add a row for counts
+    #df.loc['count'] = counts
+
+
+    return df

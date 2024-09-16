@@ -152,13 +152,15 @@ conf_threshold = 0.95
 std_threshold = 0.5
 fps = 30
 prev_vertex_position = np.zeros((8,2))
-check_video_fps = False # Uses the video FPS (it is necessary to have the trial video at the se folder)
-max_trial_duration = 5 # In minutes
-reference_region = 'dark_box'     # Define a reference region (not that important, but it will give you the time ratio spent on the reference region)
+check_video_fps = False             # Uses the video FPS (it is necessary to have the trial video at the se folder)
+max_trial_duration = 5              # In minutes
+reference_region = 'dark_box'       # Define a reference region (not that important, but it will give you the time ratio spent on the reference region)
+region_trigger = 'dark_box'         # The trial begins only when the animal first enters the given region (default: None)
 save_csv = True
+interpolation_adjust = True
 
 # List of parameters to be evaluated for each region
-parameters_list = ['entries', 'time', 'av_speed', 'mean_visit']
+parameters_list = ['entries', 'time', 'av_speed', 'mean_visit','latency_1st_exit']
 
 # box_length
 maze_info_pixel = dict()
@@ -185,8 +187,13 @@ for it in range(len(filename)):
     df = pd.read_hdf(filename[it])
     # Fix camera shaking
     df = df_fix_camera_shaking(df, bp_reference_str=bp_names['v_1'])
-    # Exclude frames outside of maximum trial duration
-    df = exclude_f_past_duration(df, trial_duration=max_trial_duration, fps=fps)
+    
+    # Check whether the trial beggins when a trigger is active (for instance, the animal enters the dark box)
+    # Case there isn't a trigger region, just exclude the frames past trial duration
+    if region_trigger is None:
+        # Exclude frames outside of maximum trial duration
+        df = exclude_f_past_duration(df, trial_duration=max_trial_duration, fps=fps)
+        
     # Get each vertex position
     position_each_vertex = get_vertex_positions(df, bp_names, prev_vertex_position=prev_vertex_position) 
     prev_vertex_position = position_each_vertex # UPDATE THE vertex POSITION IN CASE OF AN ERROR
@@ -199,10 +206,19 @@ for it in range(len(filename)):
     # Model the maze regions defined by the user (the area sum of grid squares)
     maze_regions_dict, maze_regions_dict_list = model_maze_regions(position_each_vertex)
     
+    def exclude_f_before_trial_region_trigger(df, bp_pos_on_region, maze_regions_dict, region_trigger):
+        # Get the region trigger index (coded based on bp_pos_on_region)
+        region_index = list(maze_regions_dict.keys()).index(region_trigger)
+        # Find the first frame where the animal is on the trigger region
+        frame_trigger = np.where(bp_pos_on_region == region_index)[0][0]
+        
+        # Exclude the data frame rows before the frame_trigger
+        return df.drop(range(frame_trigger))
+        
     # # Get the coordinates for a specific body part
     # head_coord = df.xs(bp_names['head'], level='bodyparts', axis=1).to_numpy()  
     # # Fix coordinates inconsistencies based on confidence interval
-    # body_part_matrix_head = fix_frames_confidence(head_coord,conf_threshold)  
+    # body_part_matrix_head, exc_frames = fix_frames_confidence(head_coord,conf_threshold)  
    
     # STEP 3.2 --> GET THE TRIAL BEGINNING, END AND LATENCY
     # Define the trial beginning and end based on confidence interval
@@ -239,18 +255,58 @@ for it in range(len(filename)):
     # Get the coordinates for a specific body part
     body_centre_coord = df.xs(bp_names['body'], level='bodyparts', axis=1).to_numpy()  
     # Fix coordinates inconsistencies based on confidence interval
-    body_part_matrix_body_centre = fix_frames_confidence(body_centre_coord,conf_threshold)
+    body_part_matrix_body_centre, exc_frames = fix_frames_confidence(body_centre_coord,conf_threshold)
     
     # # UPDATE the beginning and end for the body_centre as well
     # body_part_matrix_body_centre, beg, end = get_trial_beginning_end_all_bp(body_part_matrix_body_centre, df, 0.95)
+    # STEP 7.1 --> BODY PART POSITION ON REGION
+    bp_pos_on_region = get_bp_position_on_region_OF(body_part_matrix_body_centre, maze_regions_dict, fps=fps)
+
+    # In case the trigger region is active
+    if region_trigger != None:
+        # Exclude the frames before the trigger is active
+        df = exclude_f_before_trial_region_trigger(df, bp_pos_on_region, maze_regions_dict, region_trigger)
+        # Exclude frames outside of maximum trial duration
+        df = exclude_f_past_duration(df, trial_duration=max_trial_duration, fps=fps)
+        
+        # Compute some temporal series again after that
+        
+        # BODY CENTRE COORDS
+        # Get the coordinates for a specific body part
+        body_centre_coord = df.xs(bp_names['body'], level='bodyparts', axis=1).to_numpy()  
+        # Fix coordinates inconsistencies based on confidence interval
+        body_part_matrix_body_centre, exc_frames = fix_frames_confidence(body_centre_coord,conf_threshold)
+        
+        # STEP 7.1 --> BODY PART POSITION ON REGION
+        bp_pos_on_region = get_bp_position_on_region_OF(body_part_matrix_body_centre, maze_regions_dict, fps=fps)
+
+    if interpolation_adjust is True:
+        # Get instantaneous speed to evaluate whether there are artifacts
+        inst_speed, inst_speed_entire, av_speed = get_inst_speed(body_centre_coord, maze_info_pixel, time_win=10, fps=fps)
+        # Get instantaneous speed outliers
+        speed_outlier = detect_outliers(inst_speed_entire,'zscore',threshold=2)
+        speed_outlier[exc_frames] = True
+        
+        # Finally check points outside the maze
+        # reconstruct the maze by its vertex
+        rectangle = position_each_vertex[[0,1,5,4],:]
+        outside_maze = np.logical_not(are_points_inside_polygon(rectangle, body_centre_coord[:,0:2]))
+        speed_outlier[outside_maze] = True    
+        
+        # Exclude outlier x,y coordinates and interpolate them
+        body_part_matrix_body_centre = interpolate_x_y(body_centre_coord, speed_outlier)
+        
+        # STEP 7.1 --> BODY PART POSITION ON REGION
+        bp_pos_on_region = get_bp_position_on_region_OF(body_part_matrix_body_centre, maze_regions_dict, fps=fps)
+
+
+    # Filter bp_pos_on_region
+    bp_pos_on_region = filter_result_pos_on_maze(bp_pos_on_region, method_used='complete', win=10, mov_sec=None, fps=fps)
     
     # STEP 7 --> GET THE TOTAL DISTANCE, INSTANT SPEED AND AVERAGE SPEED
     total_distance = get_distance(body_part_matrix_body_centre, maze_info_pixel)[1]
     inst_speed, inst_speed_entire, av_speed = get_inst_speed(body_part_matrix_body_centre, maze_info_pixel, time_win=10, fps=fps)
         
-    # STEP 7.1 --> BODY PART POSITION ON REGION
-    bp_pos_on_region = get_bp_position_on_region_OF(body_part_matrix_body_centre, maze_regions_dict, fps=fps)
-
     # Get exploration details
     n_explorations, exploration_details = get_n_explorations(bp_pos_on_region, maze_regions_dict.keys())
         

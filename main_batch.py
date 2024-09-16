@@ -67,7 +67,7 @@ for it in range(len(filename)):
     # Get the coordinates for a specific body part
     nose_coord = df.xs('nose', level='bodyparts', axis=1).to_numpy()  
     # Fix coordinates inconsistencies based on confidence interval
-    body_part_matrix_nose = fix_frames_confidence(nose_coord,conf_threshold)  
+    body_part_matrix_nose, exc_frames = fix_frames_confidence(nose_coord,conf_threshold)  
     ## OLD FUNCTION --> Fix coordinates inconsistencies based on (x,y) diff standard deviation
     # body_part_matrix_nose = fix_frames_diff(body_part_matrix_nose,std_threshold)
     
@@ -87,7 +87,7 @@ for it in range(len(filename)):
     # Get the coordinates for a specific body part
     body_centre_coord = df.xs('body_centre', level='bodyparts', axis=1).to_numpy()  
     # Fix coordinates inconsistencies based on confidence interval
-    body_part_matrix_body_centre = fix_frames_confidence(body_centre_coord,conf_threshold)
+    body_part_matrix_body_centre, exc_frames = fix_frames_confidence(body_centre_coord,conf_threshold)
     
     # UPDATE the beginning and end for the body_centre as well
     body_part_matrix_body_centre, beg, end = get_trial_beginning_end_all_bp(body_part_matrix_body_centre, df, 0.95, max_duration_trial=trial_duration)

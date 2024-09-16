@@ -677,6 +677,9 @@ def compute_trial_parameters_for_each_region(maze_regions_dict_keys_list, parame
                 case 'mean_visit':  # Calculate the average time spent on each region visit
                     df.loc[0,col_name_str] = df.loc[0,mz_name+'_'+'time'] / df.loc[0,mz_name+'_'+'entries']
     
+                case 'latency_1st_exit':    # Calculate the latency for the first exit
+                    df.loc[0,col_name_str] = exploration_details.loc[exploration_details['From'] == mz_name, 'Index'].to_numpy()[0]/fps
+    
     # Return the Data Frame with associated parameters
     return df
 
