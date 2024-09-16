@@ -156,6 +156,39 @@ def filter_bp_pos_on_maze(bp_pos_on_maze, method_used='complete', win=3, mov_sec
     return np.array(bp_pos_on_maze_filtered)
 
 
+# Create a moving window to eliminate quick variations of the bp
+def filter_result_pos_on_maze(bp_pos_on_maze, method_used='complete', win=3, mov_sec=None, fps=30):
+    
+    # Get the unique exploration values
+    unique_exp = np.unique(bp_pos_on_maze)
+    min_unique = np.min(unique_exp)
+    max_unique = np.max(unique_exp)
+    len_unique = len(unique_exp)
+    
+    # win is the time threshold value between differences to be considered a real diference (in seconds)
+    if method_used == 'complete':
+        # Create the return value
+        bp_pos_on_maze_filtered = bp_pos_on_maze
+        # Loop for each possible place in the maze
+        for i in np.linspace(max_unique,min_unique,len_unique):
+            a = np.transpose(np.array(np.where(bp_pos_on_maze == i)))
+            #print(a)
+            b = np.transpose(np.array(np.diff(a.T)))
+            #print(b)
+            mask_logical = np.array((b <= win) & (b > 1))
+            mask = np.transpose(np.array(np.where(mask_logical == True))[0,:])
+            #mask = np.array(np.where((b <= win) & (b > 1))) # mask to indicate where to change BO TÁ AQUI
+            
+            for ii in mask:
+                idx = ii # Account for diff function
+                first = a[idx]+1    # First idx to be changed
+                last = a[idx+1]-1   # Last idx to be changed
+                    
+                bp_pos_on_maze_filtered[np.arange(first,last+1,1)] = i  # Insert the correct the position           
+            
+    return np.array(bp_pos_on_maze_filtered)
+
+
 def get_trial_beginning_end_all_bp(body_part_matrix, df, conf_threshold, fps=30, max_duration_trial=3, n_bp=11):
     bps = df.columns.get_level_values(1)    
     

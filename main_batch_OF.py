@@ -151,15 +151,36 @@ bp_names = {'head': 'head_centre',
                     'PIM_3': 'centerrighthigh',
                     'PIM_4': 'centerrightlow'}
 
+# bp_names = {'head': 'head',           
+#             'body': 'body',
+#             'tail': 'tail',
+#             'v_1': 'upperleftlow',
+#             'v_2': 'upperrightlow',
+#             'v_3': 'lowerrightlow',
+#             'v_4': 'lowerleftlowra ',                   
+#             'v_5': 'upperlefthigh',
+#             'v_6': 'upperrighthigh',
+#             'v_7': 'lowerrighthigh',
+#             'v_8': 'lowerlefthigh',
+#             'PIM_1': '',
+#             'PIM_2': '',
+#             'PIM_3': '',
+#             'PIM_4': ''
+#             }
+
+
 quadrant_info = {'tip_0': (0),
-                 'tip_1': (4),
-                 'tip_2': (24),
-                 'tip_3': (20),
-                 'strip_0': (1,2,3),
-                 'strip_1': (9,14,19),
-                 'strip_2': (21,22,23),
-                 'strip_3': (5,10,15),
-                 'center': (6,7,8,11,12,13,16,17,18)}
+                  'tip_1': (4),
+                  'tip_2': (24),
+                  'tip_3': (20),
+                  'strip_0': (1,2,3),
+                  'strip_1': (9,14,19),
+                  'strip_2': (21,22,23),
+                  'strip_3': (5,10,15),
+                  'center': (6,7,8,11,12,13,16,17,18)}
+
+# quadrant_info = {'periphery': (0,4,24,20,1,2,3,9,14,19,21,22,23,5,10,15),
+#                  'center': (6,7,8,11,12,13,16,17,18)}
 
 # SET parameter values
 conf_threshold = 0.95
@@ -170,15 +191,19 @@ prev_PIM_position = np.zeros((8,2))
 check_video_fps = False # Uses the video FPS (it is necessary to have the trial video at the se folder)
 max_trial_duration = 10 # In minutes
 reference_region = 'center'     # Define a reference region (not that important, but it will give you the time ratio spent on the reference region)
+save_csv = True
+
+# List of parameters to be evaluated for each region
+parameters_list = ['entries', 'time', 'av_speed', 'mean_visit']
 
 # box_length
 maze_info_pixel = dict()
-maze_info_pixel['box_length'] = (50,50) # (long-side, short-side in cm)
+maze_info_pixel['box_length'] = (70,50) # (long-side, short-side in cm)
 # object_diameter
 
 
 # CREATE A DATA FRAME TO ORGANIZE THE RSULTS FOR ALL THE TRIALS
-trial_info = pd.DataFrame(columns=['ID','Group','Day', 'Distance', 'Av_speed'])
+trial_info = pd.DataFrame(columns=['video_name','ID','Group','Day', 'Distance', 'Av_speed'])
 
 # STEP 1 --> SELECT THE MULTIPLE FILES
 filename = select_file(multiple=True)
@@ -200,10 +225,15 @@ for it in range(len(filename)):
     df = exclude_f_past_duration(df, trial_duration=max_trial_duration, fps=fps)
     # Get each vertex position
     position_each_vertex = get_vertex_positions(df, bp_names, prev_vertex_position=prev_vertex_position) 
-    # Get each PIM (point inside the maze) position
-    position_each_PIM = get_points_inside_maze(df, bp_names, prev_PIM_position=prev_PIM_position)
     prev_vertex_position = position_each_vertex # UPDATE THE vertex POSITION IN CASE OF AN ERROR
-    prev_PIM_position = position_each_PIM       # UPDATE PIM IN CASE OF AN ERROR
+
+    if bp_names['PIM_1'] != '':
+        # Get each PIM (point inside the maze) position
+        position_each_PIM = get_points_inside_maze(df, bp_names, prev_PIM_position=prev_PIM_position)
+        prev_PIM_position = position_each_PIM       # UPDATE PIM IN CASE OF AN ERROR
+    else:
+        position_each_PIM = np.zeros((4,2))
+   
     # Get the maze centroid
     centroid_coords = centroid_inference(position_each_vertex)    
     # Get the maze coordinates in pixel
@@ -278,6 +308,12 @@ for it in range(len(filename)):
     # STEP 7.1 --> BODY PART POSITION ON QUADRANT
     bp_pos_on_region = get_bp_position_on_region_OF(body_part_matrix_body_centre, maze_regions_dict, fps=fps)
 
+    # Filter body part position
+    bp_pos_on_region = filter_result_pos_on_maze(bp_pos_on_region, method_used='complete', win=10, mov_sec=None, fps=fps)
+
+    # Get exploration details
+    n_explorations, exploration_details = get_n_explorations(bp_pos_on_region, maze_regions_dict.keys())
+
     # STEP 7.2 --> RATIO (TIME ON TARGET/ TIME ON OTHER QUADRANTS)
     ratio_reference_others, time_on_each_region = get_time_on_each_maze_region_OF(bp_pos_on_region, quadrant_info.keys(), reference_region=reference_region, fps=fps)    
       
@@ -287,13 +323,24 @@ for it in range(len(filename)):
     ID = basename[1]
     group = ''.join(basename[5:7])
     day = basename[3]
-       
+    
+                        
+    # Get the only the video filename
+    video_name = os.path.split(filename[it])[1] # Get only the filename 'tail'
+    video_name = video_name[0:video_name.index('DLC')]
     
     ######### Create a data frame to append to the final dataframe
-    data = pd.DataFrame([[ID, group, day, total_distance, av_speed, ratio_reference_others, time_on_each_region]], 
-                        columns = ['ID','Group','Day','Distance', 'Av_speed', 'ratio_reference_others', 'time_on_each_region']) 
-    # makes index continuous
-    trial_info = pd.concat([trial_info, data], ignore_index = True)  
+    data = pd.DataFrame([[video_name,ID, group, day, total_distance, av_speed, ratio_reference_others, time_on_each_region]], 
+                        columns = ['video_name','ID','Group','Day','Distance', 'Av_speed', 'ratio_reference_others', 'time_on_each_region']) 
+    
+    # Get the trial parameters for each region
+    data_by_region = compute_trial_parameters_for_each_region(maze_regions_dict.keys(), parameters_list, exploration_details, bp_pos_on_region, inst_speed_entire, fps)
+    
+    # Concatenate both data for the entire trial (data) and for each region (data_by_region)
+    concat_data = pd.concat([data, data_by_region], axis=1)
+
+    # Concatenate the trial parameters and trial parameters by region to the final result data frame (makes index continuous)
+    trial_info = pd.concat([trial_info, concat_data], ignore_index = True)  
     
     # Trial temporal series
     trial_temp_series = dict({'bp_pos_on_region':bp_pos_on_region.tolist(), 
@@ -333,3 +380,8 @@ save_filename = os.path.dirname(filename[it])+'/'+'Final_results'+'.h5'
 trial_info.to_hdf(save_filename, key='trial_info', mode='w')  
 
 trial_info = pd.read_hdf(save_filename, key='trial_info')  
+
+# STEP 12 --> Save final dataframe as csv
+if save_csv is True:
+    save_filename = os.path.dirname(filename[it])+'/'+'Final_results'+'.csv'
+    trial_info.to_csv(path_or_buf=save_filename, sep=',')

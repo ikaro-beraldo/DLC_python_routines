@@ -75,7 +75,7 @@ def get_manual_classification(filename, video_folder):
 
 ## Main function
 # CSV filename
-#filename = "D:\\AnalisesRafa\\OLR\\AnalisesBia\\VideoAnnotation\\Demo-Video Annotation10Dec2023_15h39m21s_export.csv"
+filename = "E:\\AnalisesBia\\VideoAnnotation\\38.csv"
 # Video_folder
-#video_folder = "D:\\AnalisesRafa\\OLR\\AnalisesBia\\BarnesMaze\\"
-#output_dict = get_manual_classification(filename, video_folder)
+video_folder = "E:\AnalisesBia\BarnesMaze\\"
+output_dict = get_manual_classification(filename, video_folder)

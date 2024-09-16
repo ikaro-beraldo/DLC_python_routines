@@ -132,29 +132,38 @@ def model_objects(dlc_data_frame, bp_names, conf_threshold, maze_info_pixel, cen
     g_1_base = dlc_data_frame.xs(bp_names['obj_1_edge'], level='bodyparts', axis=1).to_numpy()
     g_2_base = dlc_data_frame.xs(bp_names['obj_2_edge'], level='bodyparts', axis=1).to_numpy()
     
+    def compare_and_update_conf(temp_series, conf_threshold):
+        confidence_mask = []
+        conf_aux = conf_threshold
+        while not np.any(confidence_mask):
+            confidence_mask = np.where(temp_series >= conf_aux)[0]
+            conf_aux -=0.05
+        return confidence_mask
+            
     # G_1_TAMPA
     # compare the confidence for each frame 
-    confidence_mask = np.where(g_1_tampa[:,2] >= conf_threshold)
+    confidence_mask = compare_and_update_conf(g_1_tampa[:,2], conf_threshold)
     # average the (x,y) coords for only the frames that have the min confidence
     position_g_1_tampa = np.array((np.average(g_1_tampa[confidence_mask,0]), np.average(g_1_tampa[confidence_mask,1])))
 
     # G_2_TAMPA
     # compare the confidence for each frame 
-    confidence_mask = np.where(g_2_tampa[:,2] >= conf_threshold)
+    confidence_mask = compare_and_update_conf(g_2_tampa[:,2], conf_threshold)
     # average the (x,y) coords for only the frames that have the min confidence
     position_g_2_tampa = np.array((np.average(g_2_tampa[confidence_mask,0]), np.average(g_2_tampa[confidence_mask,1])))
 
     # G_1_BASE
     # compare the confidence for each frame 
-    confidence_mask = np.where(g_1_base[:,2] >= conf_threshold)
+    confidence_mask = compare_and_update_conf(g_1_base[:,2], conf_threshold)
     # average the (x,y) coords for only the frames that have the min confidence
     position_g_1_base = np.array((np.average(g_1_base[confidence_mask,0]), np.average(g_1_base[confidence_mask,1])))
     
     # G_2_BASE
     # compare the confidence for each frame 
-    confidence_mask = np.where(g_2_base[:,2] >= conf_threshold)
+    confidence_mask = compare_and_update_conf(g_2_base[:,2], conf_threshold)
     # average the (x,y) coords for only the frames that have the min confidence
     position_g_2_base = np.array((np.average(g_2_base[confidence_mask,0]), np.average(g_2_base[confidence_mask,1])))
+
 
     # Get the average x,y for each combination of base/tampa point
     av_g_1 = np.mean(np.array((position_g_1_base, position_g_1_tampa)), axis=0)
@@ -228,8 +237,8 @@ def model_objects(dlc_data_frame, bp_names, conf_threshold, maze_info_pixel, cen
     maze_info_pixel_list['emp_radius_pixel'] = maze_info_pixel['emp_radius_pixel'].tolist()
     maze_info_pixel_list['emp_radius_pixel_outer'] = maze_info_pixel['emp_radius_pixel_outer'].tolist()
 
-    fig, axes = plt.subplots()
-    maze_recreation_plot_OLR(axes, centroid_coords, position_each_vertex, maze_info_pixel)
+    # fig, axes = plt.subplots()
+    # maze_recreation_plot_OLR(axes, centroid_coords, position_each_vertex, maze_info_pixel)
     
     return maze_info_pixel, maze_info_pixel_list
     

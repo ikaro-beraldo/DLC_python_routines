@@ -117,58 +117,147 @@ def plot_video_obj_exploration_grab(video_file, obj_exploration):
     # Close the Matplotlib window when you're done
     plt.close()
     
+def plot_video_obj_exploration_grab_GIF(video_file, obj_exploration):
+
+    import cv2
+    import matplotlib.pyplot as plt
+    
+    # Load the video using OpenCV or imageio
+    video_path = video_file[0]
+    video = cv2.VideoCapture(video_path)  # For OpenCV
+    # video = imageio.get_reader(video_path)  # For imageio
+    
+    # Create a Matplotlib figure
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2)
+    
+    ax1.set_position([0.1, 0.35, 0.8, 0.6])  # [left, bottom, width, height]
+    ax2.set_position([0.1, 0.1, 0.8, 0.2])
+    # plt.delaxes(ax2)
+    plt.delaxes(ax3)
+    plt.delaxes(ax4)
+    plt.delaxes(ax5)
+    plt.delaxes(ax6)
+        
+    i = 0; # frame index
+    
+    while True:
+        grabbed = video.grab()  # Grab the next frame without decoding
+    
+        if not grabbed:  # Break the loop when the video ends
+            break
+    
+        # Read the grabbed frame
+        ret, frame = video.retrieve()
+    
+        if not ret:
+            break
+    
+        # Process the frame if needed (e.g., image processing, object detection)
+    
+        # Plot the video frame
+        ax1.clear()
+        ax1.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB
+        # ax1.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)[99:449, 399:899, :])  # Convert BGR to RGB
+
+        # Plot the exploration line
+        ax2.clear()
+        idx = range(0,i)
+        ax2.plot(idx,obj_exploration[idx])
+        plt.xlim(0,len(obj_exploration))
+        plt.ylim(0,2.5)
+        # Create additional plots on the second subplot (ax2)
+        # idx = np.arange(0,i+1)
+        print('Obj:'+ str(obj_exploration[i]))
+        plot_ball = ax2.plot(i, obj_exploration[i],'r.')
+        plot_ball = plot_ball.pop(0)
+        
+        # You can add any other plots or visualizations here.
+    
+        #plt.pause(0.001)  # Pause for a short time to display the frame
+        plot_ball.remove()
+        
+        plt.savefig(f'./Gifs/OLR/img_{i}.png', 
+                    transparent = False,  
+                    facecolor = 'white')   
+        
+        #plt.close()
+        
+        i = i+1 # Add to the iterator
+        
+        
+    # Release the video capture object
+    video.release()
+       
+    # Create the gif based on the frames
+    time = range(0,len(obj_exploration))
+    frames = []
+    for t in time:
+        image = imageio.v2.imread(f'./Gifs/OLR/img_{t}.png')
+        frames.append(image)
+        print(t)
+
+    # Save the gif
+    imageio.mimsave('./Gifs/OLR/example1.gif', # output gif
+                    frames,          # array of input frames
+                    fps = 30)         # optional: frames per second
+    
+        
+    # Close the Matplotlib window when you're done
+    plt.close()
+    
 
 # Body_part names (in the future it will be obtained from a config file)
-# bp_names = {'nose': 'snout',
-#                     'head': 'head',
-#                     'body': 'body',
-#                     'v_1': 'upperleftlow',
-#                     'v_2': 'upperrightlow',
-#                     'v_3': 'lowerrightlow',
-#                     'v_4': 'lowerleftlow',                   
-#                     'v_5': 'upperlefthigh',
-#                     'v_6': 'upperrighthigh',
-#                     'v_7': 'lowerrighthigh',
-#                     'v_8': 'lowerlefthigh',
-#                     'obj_1_center': 'leftobjectcenter',
-#                     'obj_1_edge': 'leftobjectedge',
-#                     'obj_2_center': 'rightobjectcenter',
-#                     'obj_2_edge': 'tightobjectedge'}
+bp_names = {'nose': 'snout',
+                    'head': 'head',
+                    'body': 'body',
+                    'v_1': 'upperleftlow',
+                    'v_2': 'upperrightlow',
+                    'v_3': 'lowerrightlow',
+                    'v_4': 'lowerleftlow',                   
+                    'v_5': 'upperlefthigh',
+                    'v_6': 'upperrighthigh',
+                    'v_7': 'lowerrighthigh',
+                    'v_8': 'lowerlefthigh',
+                    'obj_1_center': 'leftobjectcenter',
+                    'obj_1_edge': 'leftobjectedge',
+                    'obj_2_center': 'rightobjectcenter',
+                    'obj_2_edge': 'tightobjectedge'}
 
-bp_names = {'nose': 'nose',
-                    'head': 'head_centre',
-                    'body': 'body_centre',
-                    'v_1': 'v_1',
-                    'v_2': 'v_2',
-                    'v_3': 'v_3',
-                    'v_4': 'v_4',                   
-                    'v_5': 'v_5',
-                    'v_6': 'v_6',
-                    'v_7': 'v_7',
-                    'v_8': 'v_8',
-                    'obj_1_center': 'g_1_tampa',
-                    'obj_1_edge': 'g_1_base',
-                    'obj_2_center': 'g_2_tampa',
-                    'obj_2_edge': 'g_2_base'}
+# bp_names = {'nose': 'nose',
+#                     'head': 'head_centre',
+#                     'body': 'body_centre',
+#                     'v_1': 'v_1',
+#                     'v_2': 'v_2',
+#                     'v_3': 'v_3',
+#                     'v_4': 'v_4',                   
+#                     'v_5': 'v_5',
+#                     'v_6': 'v_6',
+#                     'v_7': 'v_7',
+#                     'v_8': 'v_8',
+#                     'obj_1_center': 'g_1_tampa',
+#                     'obj_1_edge': 'g_1_base',
+#                     'obj_2_center': 'g_2_tampa',
+#                     'obj_2_edge': 'g_2_base'}
 
 # SET parameter values
 conf_threshold = 0.95
 std_threshold = 0.5
 fps = 30
 prev_vertex_position = np.zeros((8,2))
-check_video_fps = True # Uses the video FPS (it is necessary to have the trial video at the se folder)
-max_trial_duration = 5 # In minutes
+check_video_fps = False # Uses the video FPS (it is necessary to have the trial video at the se folder)
+max_trial_duration = 10 # In minutes
+save_csv = True
 
 # box_length
 maze_info_pixel = dict()
-maze_info_pixel['box_length'] = (67,50) # (long-side, short-side in cm)
+maze_info_pixel['box_length'] = (50,50) # (long-side, short-side in cm)
 # object_diameter
-maze_info_pixel['obj_diameter'] = 7 # in cm
+maze_info_pixel['obj_diameter'] = 8 # in cm
 # Length of outer layer of objects 
 maze_info_pixel['outer_obj_layer_cm'] = 2 # in cm
 
 # CREATE A DATA FRAME TO ORGANIZE THE RSULTS FOR ALL THE TRIALS
-trial_info = pd.DataFrame(columns=['ID','Group','Day', 'Distance', 'Av_speed'])
+trial_info = pd.DataFrame(columns=['Video_name','ID','Group','Day', 'Distance', 'Av_speed'])
 
 # STEP 1 --> SELECT THE MULTIPLE FILES
 filename = select_file(multiple=True)
@@ -223,21 +312,22 @@ for it in range(len(filename)):
     
     # STEP 4 --> CREATE A CODE FOR THE NOSE POSITION ON MAZE
     # Get the nose position on the maze
-    bp_pos_on_maze = get_bp_position_on_maze_OLR(body_part_matrix_nose, maze_info_pixel, centroid_coords, position_each_vertex, fps=fps)
+    bp_pos_on_maze = get_bp_position_on_maze_OLR(body_part_matrix_nose, body_part_matrix_head, maze_info_pixel, centroid_coords, position_each_vertex, fps=fps)
     # Get the head angle
     head_angle = get_head_angle(body_part_matrix_nose,body_part_matrix_head)
     # Get the object exploration vector (throughout time)
     obj_exploration, obj_exp_parameters = get_obj_exploration(bp_pos_on_maze,head_angle, maze_info_pixel, body_part_matrix_nose, body_part_matrix_head, centroid_coords, position_each_vertex, fps=fps)
     
-    #video_file = select_file(multiple = True)
-    #plot_video_obj_exploration_grab(video_file, obj_exploration)
-    #plot_video_obj_exploration(body_part_matrix_nose, body_part_matrix_head, df, centroid_coords, position_each_vertex, maze_info_pixel, obj_exploration)
+    # Filter object exploration time series (to account for lesser errors)
+    obj_exploration = filter_result_pos_on_maze(obj_exploration, method_used='complete', win=10, mov_sec=None, fps=fps)
     
-    ratio_1_total = obj_exp_parameters['ratio_1_total']
-    ratio_2_total = obj_exp_parameters['ratio_2_total']
-    time_obj_1 = obj_exp_parameters['time_obj_1']
-    time_obj_2 = obj_exp_parameters['time_obj_2']
-
+    # Get exploration details
+    n_explorations, exploraiton_details = get_n_explorations(obj_exploration)
+    
+    video_file = select_file(multiple = True)
+    plot_video_obj_exploration_grab(video_file, obj_exploration)
+    # #plot_video_obj_exploration(body_part_matrix_nose, body_part_matrix_head, df, centroid_coords, position_each_vertex, maze_info_pixel, obj_exploration)
+    
     # Filter the nose position
     bp_pos_on_maze_filtered = filter_bp_pos_on_maze(bp_pos_on_maze, method_used='complete', win=fps)
     
@@ -270,11 +360,23 @@ for it in range(len(filename)):
     ID = basename[1]
     group = ''.join(basename[5:7])
     day = basename[3]
-       
+    
+    # Get the only the video filename
+    video_name = os.path.split(filename[it])[1] # Get only the filename 'tail'
+    video_name = video_name[0:video_name.index('DLC')]
+      
+    ## GET SPECIFIC PARAMETERS
+    ratio_1_total = obj_exp_parameters['ratio_1_total']
+    ratio_2_total = obj_exp_parameters['ratio_2_total']
+    time_obj_1 = obj_exp_parameters['time_obj_1']
+    time_obj_2 = obj_exp_parameters['time_obj_2']
+
+    n_obj_1 = n_explorations[1,1]
+    n_obj_2 = n_explorations[2,1]
     
     ######### Create a data frame to append to the final dataframe
-    data = pd.DataFrame([[ID, group, day, total_distance, av_speed, ratio_1_total, ratio_2_total, time_obj_1, time_obj_2]], 
-                        columns = ['ID','Group','Day','Distance', 'Av_speed', 'ratio_1_total', 'ratio_2_total', 'time_obj_1', 'time_obj_2']) 
+    data = pd.DataFrame([[video_name, ID, group, day, total_distance, av_speed, ratio_1_total, ratio_2_total, time_obj_1, time_obj_2, n_obj_1, n_obj_2]], 
+                        columns = ['Video_name','ID','Group','Day','Distance', 'Av_speed', 'ratio_1_total', 'ratio_2_total', 'time_obj_1', 'time_obj_2','n_obj_1','n_obj_2']) 
     # makes index continuous
     trial_info = pd.concat([trial_info, data], ignore_index = True)  
     
@@ -316,3 +418,7 @@ trial_info.to_hdf(save_filename, key='trial_info', mode='w')
 
 trial_info = pd.read_hdf(save_filename, key='trial_info')  
 
+# STEP 12 --> Save final dataframe as csv
+if save_csv is True:
+    save_filename = os.path.dirname(filename[it])+'/'+'Final_results'+'.csv'
+    trial_info.to_csv(path_or_buf=save_filename, sep=',')

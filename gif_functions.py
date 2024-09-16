@@ -177,7 +177,7 @@ def create_images_for_gif(t, body_part_matrix, bp_pos_on_maze, centroid_coords, 
     plt.close()
 
 def create_gif(body_part_matrix, bp_pos_on_maze, centroid_coords, position_each_hole, maze_info_pixel, inst_speed_entire, quadrant_dict, bp_pos_on_quadrant, plot_frame=False, title='Nose', show=False):
-    time = np.arange(0, np.shape(body_part_matrix)[0], 1)
+    time = np.arange(0, np.shape(body_part_matrix)[0], 3)
     
     #create a reference dict regarding all the temporal series
     ref = dict({'body_part_matrix':body_part_matrix, 'bp_pos_on_maze':bp_pos_on_maze, 'inst_speed_entire':inst_speed_entire, 'bp_pos_on_quadrant':bp_pos_on_quadrant})
@@ -194,4 +194,5 @@ def create_gif(body_part_matrix, bp_pos_on_maze, centroid_coords, position_each_
     imageio.mimsave('./Gifs/example1.gif', # output gif
                     frames,          # array of input frames
                     fps = 30)         # optional: frames per second
+
 

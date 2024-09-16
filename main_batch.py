@@ -157,7 +157,7 @@ for it in range(len(filename)):
     big_plot(body_part_matrix_nose, body_part_matrix_body_centre, bp_pos_on_maze_filtered, centroid_coords, position_each_hole, maze_info_pixel, inst_speed_entire, quadrant_dict, bp_pos_on_quadrant, save_filename_plot, trial_data=data, trial_name=''.join(basename[0:14]), show=False)
      
     # STEP 10 --> CREATE A COOL GIF (SLOW.....)
-    #create_gif(body_part_matrix, bp_pos_on_maze, centroid_coords, position_each_hole, maze_info_pixel, inst_speed_entire, quadrant_dict, bp_pos_on_quadrant, plot_frame=False, title='Nose', show=False)
+    create_gif(body_part_matrix_nose, bp_pos_on_maze, centroid_coords, position_each_hole, maze_info_pixel, inst_speed_entire, quadrant_dict, bp_pos_on_quadrant, plot_frame=False, title='Nose', show=False)
     
     # Lil' print to inform to the user that this specific trial has been analysed
     print(str(it)+' - '+''.join(basename[0:14]) + str(': OK!'))

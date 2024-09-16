@@ -6,6 +6,7 @@ import numpy as np
 import sympy as sp
 from color_functions import *
 from plot_functions import maze_recreation_plot_OLR
+import pandas as pd
 
 # Extract the animal position relative to the maze holes
 def get_bp_position_on_maze(body_part_matrix, position_each_hole, maze_info_pixel, centroid_coords, fps=30):
@@ -153,7 +154,7 @@ def get_inst_speed(body_part_matrix, maze_info_pixel, time_win=1, fps=30):
         inst_speed_entire[np.arange(a,b+1,1)] = np.sum(euc_distance_frame[np.arange(a,b+1,1)])/time_win_sec       # Instaneous speed, but filling every single frame value (even if it is repeated, important for plot)
            
     # Mean speed
-    av_speed = np.mean(inst_speed)
+    av_speed = np.average(inst_speed)
         
     return inst_speed, inst_speed_entire, av_speed
         
@@ -379,7 +380,7 @@ def get_head_angle(body_part_matrix_nose,body_part_matrix_head):
     return head_angle
 
 # Extract the animal position relative to the maze holes
-def get_bp_position_on_maze_OLR(body_part_matrix_nose, maze_info_pixel, centroid_coords, position_each_vertex, fps=30):
+def get_bp_position_on_maze_OLR(body_part_matrix_nose, body_part_matrix_head, maze_info_pixel, centroid_coords, position_each_vertex, fps=30):
     
     # Nose coords
     x = body_part_matrix_nose[:,0]  # x coords
@@ -406,7 +407,21 @@ def get_bp_position_on_maze_OLR(body_part_matrix_nose, maze_info_pixel, centroid
     mask = is_point_inside_ellipse(x, y, maze_info_pixel['emp_radius_pixel'][0], maze_info_pixel['emp_radius_pixel'][1], maze_info_pixel['av_g_2'][0], maze_info_pixel['av_g_2'][1], sp.rad(maze_info_pixel['angle_g_2']))
     bp_pos_on_maze[mask] = 2  # Insert the index regarding the obj (+1)
             
+    # In case the nose is inside the outer layer, check whether the head or the nose is closer to the object      
+    def check_if_head_is_closer(mask,nose,head,obj_info):
+        dist_nose = np.sqrt(np.square(obj_info[0]-nose[mask,0]) + np.square(obj_info[1]-nose[mask,1]))    # Nose euclidian distance to the object
+        dist_head = np.sqrt(np.square(obj_info[0]-head[mask,0]) + np.square(obj_info[1]-head[mask,1]))    # Head euclidian distance to the object
         
+        return mask[dist_head <= dist_nose]   # Return only the frames in which the head is closer to the object
+    
+    # Object 1 outer layer (in case the head is closer to the object: when the animal is with his back to the object)
+    bp_pos_on_maze[check_if_head_is_closer(np.where(bp_pos_on_maze == 1.5)[0], body_part_matrix_nose,
+                            body_part_matrix_head, maze_info_pixel['av_g_1'])] = 0
+    
+    # Object 2 outer layer
+    bp_pos_on_maze[check_if_head_is_closer(np.where(bp_pos_on_maze == 2.5)[0], body_part_matrix_nose,
+                            body_part_matrix_head, maze_info_pixel['av_g_2'])] = 0
+    
     # video_file = "F:\\Barnes Maze - Mestrad\\OLR-RAFA\\T5 EvocacaoDLC_resnet50_OLRJun15shuffle2_1000000_labeled.mp4"
     
     # for i in range(bp_pos_on_maze.size):
@@ -537,10 +552,138 @@ def get_obj_exploration(bp_pos_on_maze,head_angle, maze_info_pixel, body_part_ma
     obj_exp_parameters['time_obj_1'] = np.array(np.where(obj_exploration==1)).shape[1]/fps
     obj_exp_parameters['time_obj_2'] = np.array(np.where(obj_exploration==2)).shape[1]/fps
     obj_exp_parameters['time_objs'] =  obj_exp_parameters['time_obj_1'] +  obj_exp_parameters['time_obj_2']
-    obj_exp_parameters['ratio_1_2'] =  obj_exp_parameters['time_obj_1'] / obj_exp_parameters['time_obj_2']
-    obj_exp_parameters['ratio_2_1'] =  obj_exp_parameters['time_obj_2'] / obj_exp_parameters['time_obj_1']
-    obj_exp_parameters['ratio_1_total'] =  obj_exp_parameters['time_obj_1'] / obj_exp_parameters['time_objs']
-    obj_exp_parameters['ratio_2_total'] =  obj_exp_parameters['time_obj_2'] / obj_exp_parameters['time_objs']
+    
+    # Ratios
+    # Ratio 2/1
+    if obj_exp_parameters['time_obj_1'] == 0:
+        obj_exp_parameters['ratio_2_1'] =  1
+    else:
+        obj_exp_parameters['ratio_2_1'] =  obj_exp_parameters['time_obj_2'] / obj_exp_parameters['time_obj_1']
+    
+    # Ratio 1/2
+    if obj_exp_parameters['time_obj_2'] == 0:
+        obj_exp_parameters['ratio_1_2'] =  1
+    else:
+        obj_exp_parameters['ratio_1_2'] =  obj_exp_parameters['time_obj_1'] / obj_exp_parameters['time_obj_2']
+
+    # Ratio / total
+    if obj_exp_parameters['time_objs'] == 0:
+        obj_exp_parameters['ratio_1_total'] = 0
+        obj_exp_parameters['ratio_2_total'] = 0
+    else:
+        obj_exp_parameters['ratio_1_total'] =  obj_exp_parameters['time_obj_1'] / obj_exp_parameters['time_objs']
+        obj_exp_parameters['ratio_2_total'] =  obj_exp_parameters['time_obj_2'] / obj_exp_parameters['time_objs']
 
     return obj_exploration, obj_exp_parameters
+
+
+# General function to extract the number of ocurrences of a specific exploration event
+def get_n_explorations(exploration_temp_series, maze_regions_dict_keys, expected_exp=None):
+    
+    # Transform the maze_regions_dict_keys into a list if it isn't already
+    if not isinstance(maze_regions_dict_keys, list):
+        maze_regions_dict_keys = list(maze_regions_dict_keys)
+    
+    # Get the differences in the temp_series (copy the first value so it has the same length as the original series)
+    difference = np.hstack((exploration_temp_series[0], np.diff(exploration_temp_series)))
+    # Get the crossing indices
+    crossings = np.where(difference != 0)[0]
+    
+    # Get the exploration beginning indices
+    from_idx = exploration_temp_series[crossings-1].astype(int)
+    selected_regions_from = [maze_regions_dict_keys[i] for i in from_idx]
+    
+    # Get the exploration end indices
+    to_idx = exploration_temp_series[crossings].astype(int)
+    selected_regions_to = [maze_regions_dict_keys[i] for i in to_idx]
+    
+    # Prepare a dataframe with the index of the explorations and from/to the crossings occurred
+    exploration_details = pd.DataFrame({'Index': crossings, 'From': selected_regions_from , 'To': selected_regions_to})
+    
+    # Get the unique exploration elements
+    unique_elements = np.unique(exploration_temp_series)
+    
+    # Pre-allocate n_exploration array (n of unique elements, 2 (element, number of explorations))
+    if expected_exp is None:
+        n_explorations = np.zeros((len(unique_elements),2))
+        loop_elements = unique_elements
+    else:
+        n_explorations = np.zeros((expected_exp,2))
+        loop_elements = np.arange(expected_exp)
+        
+    for i in range(len(loop_elements)):
+        # Number of exploration element (ex: obj, region)
+        exp_v = loop_elements[i]
+        
+        n_explorations[i,0] = exp_v
+        n_explorations[i,1] = len(np.where(exploration_temp_series[crossings]==exp_v)[0])
+        
+    return n_explorations, exploration_details
+    
+
+    
+# Add columns to the reults data frame 
+def insert_columns_on_df_based_on_maze_regions(df, maze_regions_dict_keys_list, parameters_list):
+    # df = Data frame in which the columns will be added
+    # dict_keys_list = dict keys list of column elements to be added
+    # parameters_list = list of names of parameters based on each maze region
+    
+    column_names = list()
+    # combine the maze regions and parameters names
+    for mz_name in maze_regions_dict_keys_list:         # Loop for maze_region name
+        for par_name in parameters_list:                # Loop for parameters name
+            column_names.append(mz_name+'_'+par_name)   # Combine them to create a column name
+            df[mz_name+'_'+par_name] = None;            # Create a new column on the DataFrame
+    
+    # Return the dataframe with added columns and the column names
+    return df, column_names
+
+
+# Compute the trial parameters (eg. number of entries, time in region, av. speed in region) for each region
+def compute_trial_parameters_for_each_region(maze_regions_dict_keys_list, parameters_list, exploration_details, bp_pos_on_region, inst_speed_entire, fps):
+    # df = Data frame in which the columns will be added
+    # dict_keys_list = dict keys list of column elements to be added
+    # parameters_list = list of names of parameters based on each maze region
+    
+    df = pd.DataFrame()  # Create a result dataframe
+    
+    # Transform the maze_regions_dict_keys into a list if it isn't already
+    if not isinstance(maze_regions_dict_keys_list, list):
+        maze_regions_dict_keys_list = list(maze_regions_dict_keys_list)
+    
+    column_names = list()
+    # combine the maze regions and parameters names
+    for mz_name in maze_regions_dict_keys_list:         # Loop for maze_region name
+        for par_name in parameters_list:                # Loop for parameters name
+            col_name_str = mz_name+'_'+par_name
+            column_names.append(col_name_str)           # Combine them to create a column name
+            df[mz_name+'_'+par_name] = None             # Create a new column on the DataFrame
+            
+            # Get the indices of frames when the animal was at the 'mz_name' region
+            region_idx = maze_regions_dict_keys_list.index(mz_name)  
+            
+            # Match case to check which function to use and what to extract
+            match par_name:
+                case 'entries':     # Calculate the number of entries based on the exploration_details dataframe
+                    df.loc[0,col_name_str] = exploration_details[['To']].value_counts().get(mz_name,0)
+                
+                case 'time':        # Calculate the total time spent on each region
+                    df.loc[0,col_name_str] = np.sum(bp_pos_on_region == region_idx)/fps
+                
+                case 'av_speed':    # Calculate the average speed on each region
+                    # Average the instantaneous speed of the animal in a specific part of the maze
+                    df.loc[0,col_name_str] = np.average(inst_speed_entire[bp_pos_on_region == region_idx])
+                
+                case 'mean_visit':  # Calculate the average time spent on each region visit
+                    df.loc[0,col_name_str] = df.loc[0,mz_name+'_'+'time'] / df.loc[0,mz_name+'_'+'entries']
+    
+    # Return the Data Frame with associated parameters
+    return df
+
+    
+    
+    
+    
+    
+    
     
